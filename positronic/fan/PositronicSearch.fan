@@ -13,10 +13,10 @@ class PositronicSearch : PositronicFwt {
     // Positronic variable
     Int? position {
         get { return getter(#position) }
-        set { setter(#position, val) }
+        set { setter(#position, it) }
     }
 
-    Str animal := "dog"
+    Str? animal := "dog"
 
     Void search() {
         print("Looking for $animal in $animals")
@@ -33,6 +33,10 @@ class PositronicSearch : PositronicFwt {
     }
 
     Void main() {
-        run(#search)
+        echo("Find animal in $animals")
+    	Env.cur.in.eachLine |Str line| {
+    		animal = line
+	        run(#search)
+    	}
     }
 }

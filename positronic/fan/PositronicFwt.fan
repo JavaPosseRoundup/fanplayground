@@ -13,7 +13,14 @@ abstract class PositronicFwt {
     Int nbRun := 0
     Field:QuantumState variables := [:]
 
+    private Void bigBang() {
+		currentHistory = 0
+		nbRun = 0
+		variables = [:]
+    }
+
     Void run(Method flow) {
+    	bigBang
         intRun(flow)
         while (nbRun < 20 && !done()) {
             intRun(flow)
