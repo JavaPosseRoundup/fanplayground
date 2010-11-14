@@ -76,7 +76,7 @@ class Node34 : Node {
             Node[] left := conn.exclude |co| {
               other := co.otherSideOf(this)
               return other == signalFrom || other == bigNode
-            }
+            }.map |co -> Node| { co.otherSideOf(this) }
             // After excluding the 2 above this should have only 2 connections left
             if (left.size != 2) throw Err("After filtering big and signal on has4() did not get 2 on $this")
             Connection newLeftConn := left[0].cut(this) + left[1].cut(this)
@@ -93,7 +93,7 @@ class Node34 : Node {
   }
 }
 
-class Node34Factory : SpaceFactory {
+const class Node34Factory : SpaceFactory {
   override Node createNode() {
     return Node34()
   }
@@ -101,10 +101,10 @@ class Node34Factory : SpaceFactory {
   override Node forkNode(Node[] nodes, ConnValue[] val) {
     return Node34() {
       conn.add(createConnection(it, nodes[0], val[0]))
-      conn.add(createConnection(it, nodes[1], val[1])
-      conn[ConnName.c] = createConnection(it, nodes[2], val[2])
+      conn.add(createConnection(it, nodes[1], val[1]))
+      conn.add(createConnection(it, nodes[2], val[2]))
       if (nodes.size == 4) {
-        conn[ConnName.d] = createConnection(it, nodes[3], val[3])
+        conn.add(createConnection(it, nodes[3], val[3]))
       }
     }
   }

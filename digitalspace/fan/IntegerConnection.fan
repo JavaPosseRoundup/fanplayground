@@ -11,7 +11,9 @@ const class Rules {
 class IntegerConnection : Connection {
   IntegerConnectionValue connVal := IntegerConnectionValue()
 
-  new make(Node node1, Node node2) : super(node1,node2) {
+  new make(Node node1, Node node2, ConnValue v) : super(node1,node2) {
+   if (v isnot IntegerConnectionValue) throw Err("IntegerConnection takes only IntegerConnectionValue not ${v.typeof}")
+   connVal = (IntegerConnectionValue)v
   }
 
   override ConnValue val() { return connVal }
@@ -58,11 +60,13 @@ class IntegerConnectionValue : ConnValue {
   @Operator override ConnValue plus(ConnValue o) {
     if (o isnot IntegerConnectionValue) throw Err("Cannot plus an IntegerConnectionValue to ${o.typeof()}")
     d = d + ((IntegerConnectionValue)o).d
+    return this
   }
 
   @Operator override ConnValue minus(ConnValue o) {
     if (o isnot IntegerConnectionValue) throw Err("Cannot minus an IntegerConnectionValue to ${o.typeof()}")
     d = d - ((IntegerConnectionValue)o).d
+    return this
   }
 
   override ConnValue[] half() {

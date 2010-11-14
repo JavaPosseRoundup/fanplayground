@@ -23,6 +23,19 @@ abstract class Node {
     return toCut
   }
 
+  Void connect(Connection newConn, Node endNode) {
+    if (!newConn.hasDeadNodes || newConn.findOtherSideOf(endNode) == null) throw Err("Cannot use non dead node connection or connection without the endNode")
+    Connection? found := conn.find |co->Bool| { co.otherSideOf(this) == endNode }
+    if (found != null) throw Err("Node $this already connected to $endNode")
+    myConn := Space.factory.createConnection(this, endNode, newConn.val)
+    newConn.signals.each |s| {
+      if (s.from == endNode)
+        myConn.addSignal(s.from, s.length)
+      else
+        myConn.addSignal(this, s.length)
+    }
+    conn.add(myConn)
+  }
 }
 
 mixin ConnValue {
@@ -50,6 +63,8 @@ class Signal {
     val--
     return val == 0
   }
+
+  Int length() { return val }
 
   Void add(Int d) {
     if (val <= 0) throw Err("Signal from $from is done")
@@ -103,8 +118,9 @@ abstract class Connection {
     return null
   }
 
-  Void addSignal(Node from) {
-    signals.add(Signal(from,val().signalLength))
+  Void addSignal(Node from, Int signalLength := -1) {
+    if (signalLength == -1) signalLength = val.signalLength
+    signals.add(Signal(from,signalLength))
   }
 
   Void markDead(Node cut) {
@@ -139,9 +155,9 @@ abstract class Connection {
   abstract Void setVal(ConnValue connVal)
 
   Bool canIncrement() { return val.canIncrement }
-  @Operator Connection increment() { val.increment }
+  @Operator Connection increment() { val.increment; return this }
   Bool canDecrement() { return val.canDecrement }
-  @Operator Connection decrement() { val.decrement }
+  @Operator Connection decrement() { val.decrement; return this }
 
   override Int compare(Obj o) {
     if (o isnot Connection) throw Err("Cannot compare an Connection to ${o.typeof()}")
@@ -160,12 +176,12 @@ abstract class Connection {
   @Operator Connection plusConnection(Connection o) {
     if (identical(o)) {
       // Same connection nodes, just add the connection value and signals
-      newConn := Space.factory.createConnection(na, nb, val() + o.val())
+      newConn := Space.factory.createConnection(na, nb, val + o.val)
       signals.each |s| {
-        newConn.addSignal(s.from)
+        newConn.addSignal(s.from, s.length + o.val.signalLength)
       }
       o.signals.each |s| {
-        newConn.addSignal(s.from)
+        newConn.addSignal(s.from, s.length + val.signalLength)
       }
       return newConn
     }
@@ -179,38 +195,44 @@ abstract class Connection {
     }
     // Common dead nodes cannot be more than it means connection are identical
     removedNode := commonDeadNodes[0]
-    newConn := Space.factory.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val() + o.val())
+    newConn := Space.factory.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val + o.val)
     // Keep the extra dead nodes if necessary
     if (allDead) newConn.markDead(newConn.na)
     if (o.allDead) newConn.markDead(newConn.nb)
+    // TODO: Create a method to manage copy of signals
     signals.each |s| {
+      sl := s.length + o.val.signalLength
       if (s.from == removedNode)
-        newConn.addSignal(newConn.nb)
+        newConn.addSignal(newConn.nb, sl)
       else
-        newConn.addSignal(s.from)
+        newConn.addSignal(s.from, sl)
     }
     o.signals.each |s| {
+      sl := s.length + val.signalLength
       if (s.from == removedNode)
-        newConn.addSignal(newConn.na)
+        newConn.addSignal(newConn.na, sl)
       else
-        newConn.addSignal(s.from)
+        newConn.addSignal(s.from, sl)
     }
     return newConn
   }
 
   Connection[] half() {
     newVal := val.half
+    // Copy the dead field to the 2 connections
     Connection[] newConn := [
-      Space.factory.createConnection(na, nb, newVal[0]),
-      Space.factory.createConnection(na, nb, newVal[1])
+      Space.factory.createConnection(na, nb, newVal[0]) { it.dead = this.dead },
+      Space.factory.createConnection(na, nb, newVal[1]) { it.dead = this.dead }
     ]
-    // We multiply the signals?
+    // TODO: We multiply or split the signals? => I split
+    signals.each |s| {
+      newConn.random.addSignal(s.from,s.length)
+    }
+    /*
     newConn.each |nc| {
       nc.dead = dead
-      signals.each |s| {
-        nc.addSignal(s.from)
-      }
     }
+    */
     return newConn
   }
 }
