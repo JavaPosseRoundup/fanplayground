@@ -23,11 +23,22 @@ abstract class Node {
     return toCut
   }
 
-  Void connect(Connection newConn, Node endNode) {
-    if (!newConn.hasDeadNodes || newConn.findOtherSideOf(endNode) == null) throw Err("Cannot use non dead node connection or connection without the endNode")
-    Connection? found := conn.find |co->Bool| { co.otherSideOf(this) == endNode }
-    if (found != null) throw Err("Node $this already connected to $endNode")
-    myConn := Space.factory.createConnection(this, endNode, newConn.val)
+  Node[] adjNodes() { conn.map { it.otherSideOf(this) } }
+  Bool isConnected(Node endNode) { (this != endNode) && conn.any { it.na == endNode || it.nb == endNode } }
+
+  **
+  ** Cannot connect to myself or have double connections
+  ** Connection to notCounting node should be ignore in the test
+  **
+  virtual Bool canConnect(Node endNode, Node? notCounting := null) {
+    return (this != endNode) && !isConnected(endNode) && !endNode.isConnected(this)
+  }
+
+  Connection connect(Connection newConn, Node endNode) {
+    os := newConn.findOtherSideOf(endNode)
+    if (!newConn.hasDeadNodes && os == null) throw Err("Cannot use non dead node connection ${newConn} or connection without the endNode ${os}")
+    if (!canConnect(endNode)) throw Err("Node $this already connected to $endNode")
+    myConn := Space.connFactory.createConnection(this, endNode, newConn.val)
     newConn.signals.each |s| {
       if (s.from == endNode)
         myConn.addSignal(s.from, s.length)
@@ -35,16 +46,32 @@ abstract class Node {
         myConn.addSignal(this, s.length)
     }
     conn.add(myConn)
+    endNode.conn.add(myConn)
+    return myConn
+  }
+
+  override Str toStr() {
+    connStr := conn.join(",") |co| { co.hash.toStr }
+    return "<Node $hash connections: $connStr >"
+  }
+
+  Str fullStr() {
+    connStr := conn.join(",\n") |co| { co.toStr }
+    return "<Node $hash connections:\n$connStr >"
   }
 }
 
 mixin ConnValue {
+  abstract Bool valid()
+  abstract Str? invalidReason()
   abstract Bool canIncrement()
   @Operator abstract ConnValue increment()
   abstract Bool canDecrement()
   @Operator abstract ConnValue decrement()
   @Operator abstract ConnValue plus(ConnValue o)
   @Operator abstract ConnValue minus(ConnValue o)
+  @Operator abstract ConnValue mult(Int per)
+  @Operator abstract ConnValue div(Int per)
   abstract ConnValue[] half()
   abstract Int signalLength()
 }
@@ -71,20 +98,33 @@ class Signal {
     val += d
     if (val <= 0) throw Err("Signal from $from was deleted by length reduction")
   }
+
+  override Str toStr() {
+    return "<Signal $hash length=$val from=${from.hash} >"
+  }
 }
 
 abstract class Connection {
-  const Signal[] signals := [,]
-  const Node[] nodes
+  Node[] nodes
+  Signal[] signals := [,]
   ** 1 is na dead, 2 is nb dead, 3 is both dead
   Int dead := 0
 
   new make(Node node1, Node node2) {
-    nodes = [node1,node2]
+    nodes = [node1,node2].ro
   }
 
   Node na() { return nodes[0] }
   Node nb() { return nodes[1] }
+
+  override Str toStr() {
+    return "<Connection $hash:$val na=${na.hash} nb=${nb.hash} dead=$dead signals=$signals>"
+  }
+
+  override Bool equals(Obj? o) {
+    if (o isnot Connection) return false
+    return identical(o)
+  }
 
   Bool identical(Connection o) {
     return (na == o.na && nb == o.nb) || (na == o.nb && nb == o.na)
@@ -118,9 +158,10 @@ abstract class Connection {
     return null
   }
 
-  Void addSignal(Node from, Int signalLength := -1) {
+  Connection addSignal(Node from, Int signalLength := -1) {
     if (signalLength == -1) signalLength = val.signalLength
     signals.add(Signal(from,signalLength))
+    return this
   }
 
   Void markDead(Node cut) {
@@ -176,7 +217,7 @@ abstract class Connection {
   @Operator Connection plusConnection(Connection o) {
     if (identical(o)) {
       // Same connection nodes, just add the connection value and signals
-      newConn := Space.factory.createConnection(na, nb, val + o.val)
+      newConn := Space.connFactory.createConnection(na, nb, val + o.val)
       signals.each |s| {
         newConn.addSignal(s.from, s.length + o.val.signalLength)
       }
@@ -195,7 +236,7 @@ abstract class Connection {
     }
     // Common dead nodes cannot be more than it means connection are identical
     removedNode := commonDeadNodes[0]
-    newConn := Space.factory.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val + o.val)
+    newConn := Space.connFactory.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val + o.val)
     // Keep the extra dead nodes if necessary
     if (allDead) newConn.markDead(newConn.na)
     if (o.allDead) newConn.markDead(newConn.nb)
@@ -221,18 +262,16 @@ abstract class Connection {
     newVal := val.half
     // Copy the dead field to the 2 connections
     Connection[] newConn := [
-      Space.factory.createConnection(na, nb, newVal[0]) { it.dead = this.dead },
-      Space.factory.createConnection(na, nb, newVal[1]) { it.dead = this.dead }
+      Space.connFactory.createConnection(na, nb, newVal[0]) { it.dead = this.dead },
+      Space.connFactory.createConnection(na, nb, newVal[1]) { it.dead = this.dead }
     ]
     // TODO: We multiply or split the signals? => I split
     signals.each |s| {
-      newConn.random.addSignal(s.from,s.length)
+      d := s.length
+      c := newConn.random
+      if (d > c.val.signalLength) { d = d - c.val.signalLength }
+      c.addSignal(s.from,d)
     }
-    /*
-    newConn.each |nc| {
-      nc.dead = dead
-    }
-    */
     return newConn
   }
 }
