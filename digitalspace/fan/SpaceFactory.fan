@@ -4,7 +4,7 @@
  */
 
 mixin NodeFactory {
-  abstract Node[] all()
+  abstract Node[] allNodes()
   abstract Node createNode()
   abstract Node forkNode(Node[] nodes, ConnValue[] val)
   abstract Void killNode(Node n)
@@ -12,6 +12,8 @@ mixin NodeFactory {
 
 const mixin ConnectionFactory {
   abstract Connection createConnection(Node n1, Node n2, ConnValue? val := null)
+  abstract ConnValue minVal()
+  abstract ConnValue maxVal()
 }
 
 

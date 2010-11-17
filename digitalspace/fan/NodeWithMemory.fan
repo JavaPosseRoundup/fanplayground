@@ -8,7 +8,9 @@ class NodeWithMemory : Node {
   new make() {
   }
 
-  override Connection[] signal(Connection[] from) {
+  override Bool isValid() { return true }
+
+  override Connection[] signal(Connection[] from, NodeFactory nf) {
     switch (s) {
       case NodeState.AB:
        --conn[0]

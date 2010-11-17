@@ -7,11 +7,9 @@ const class IntegerConnectionFactory : ConnectionFactory {
   override Connection createConnection(Node n1, Node n2, ConnValue? val := null) {
     return IntegerConnection(n1,n2,val)
   }
-}
 
-const class Rules {
-  static const Int MIN := 2
-  static const Int MAX := 8
+  override ConnValue minVal() { return IntegerConnectionValue(ConnRules.MIN) }
+  override ConnValue maxVal() { return IntegerConnectionValue(ConnRules.MAX) }
 }
 
 class IntegerConnection : Connection {
@@ -42,20 +40,29 @@ class IntegerConnection : Connection {
 class IntegerConnectionValue : ConnValue {
   Int d { private set }
 
-  new make(Int val := Rules.MIN) {
+  new make(Int val := ConnRules.MIN) {
     d = val
   }
 
   override Str toStr() { "$d" }
 
   override Bool valid() {
-    return (d >= Rules.MIN) && (d <= Rules.MAX)
+    return (d >= ConnRules.MIN) && (d <= ConnRules.MAX)
   }
 
   override Str? invalidReason() {
-    if (d < Rules.MIN) return "Value $d is below MIN ${Rules.MIN}"
-    if (d > Rules.MAX) return "Value $d is above MAX ${Rules.MAX}"
+    if (d < ConnRules.MIN) return "Value $d is below MIN ${ConnRules.MIN}"
+    if (d > ConnRules.MAX) return "Value $d is above MAX ${ConnRules.MAX}"
     return null
+  }
+
+  override Bool equals(Obj? o) {
+    if (o isnot IntegerConnectionValue) return false
+    return this.d == ((IntegerConnectionValue)o).d
+  }
+
+  override Int hash() {
+    return d.hash
   }
 
   override Int compare(Obj o) {
@@ -64,7 +71,7 @@ class IntegerConnectionValue : ConnValue {
   }
 
   override Bool canIncrement() {
-    return d < Rules.MAX
+    return d < ConnRules.MAX
   }
 
   @Operator override ConnValue increment() {
@@ -73,7 +80,7 @@ class IntegerConnectionValue : ConnValue {
   }
 
   override Bool canDecrement() {
-    return d > Rules.MIN
+    return d > ConnRules.MIN
   }
 
   @Operator override ConnValue decrement() {
@@ -83,31 +90,28 @@ class IntegerConnectionValue : ConnValue {
 
   @Operator override ConnValue plus(ConnValue o) {
     if (o isnot IntegerConnectionValue) throw Err("Cannot plus an IntegerConnectionValue to ${o.typeof()}")
-    d = d + ((IntegerConnectionValue)o).d
-    return this
+    return IntegerConnectionValue(d + ((IntegerConnectionValue)o).d)
   }
 
   @Operator override ConnValue minus(ConnValue o) {
     if (o isnot IntegerConnectionValue) throw Err("Cannot minus an IntegerConnectionValue to ${o.typeof()}")
-    d = d - ((IntegerConnectionValue)o).d
-    return this
+    return IntegerConnectionValue(d - ((IntegerConnectionValue)o).d)
   }
 
   @Operator override ConnValue mult(Int per) {
-    d = d * per
-    return this
+    return IntegerConnectionValue(d * per)
   }
 
   @Operator override ConnValue div(Int per) {
-    d = d / per
+    v := d / per
     // Can never be 0 => at least 1
-    if (d == 0) d = 1
-    return this
+    if (v == 0) v = 1
+    return IntegerConnectionValue(v)
   }
 
   override ConnValue[] half() {
-    Int[] half := [Rules.MIN,Rules.MIN]
-    if (d <= Rules.MIN*2) {
+    Int[] half := [ConnRules.MIN,ConnRules.MIN]
+    if (d <= ConnRules.MIN*2) {
       // Not enough connection length to cut in 2
       // Generate 2 identical half of min length
     } else {
