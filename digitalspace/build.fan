@@ -18,7 +18,7 @@ class Build : BuildPod
   {
     podName = "digitalspace"
     summary = "Quatum Space state machine experiments"
-    depends = ["sys 1.0"]
+    depends = ["sys 1.0", "util 1.0"]
     srcDirs = [`fan/`, `test/`]
   }
 }

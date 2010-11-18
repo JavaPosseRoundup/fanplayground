@@ -6,6 +6,7 @@
 mixin ConnValue {
   abstract Bool valid()
   abstract Str? invalidReason()
+  abstract Bool isZero()
   abstract Bool canIncrement()
   @Operator abstract ConnValue increment()
   abstract Bool canDecrement()
@@ -56,16 +57,25 @@ abstract class Connection {
     return (na == oa && nb == ob) || (na == ob && nb == oa)
   }
 
-  Node[] timePass() {
+  Node[] timePass(Signal[] alreadyDone := [,]) {
     Signal[] done := [,]
+    Signal[] activated := [,]
     signals.each |s| {
-      if (s.timePass) done.add(s)
+      if (alreadyDone.contains(s)) {
+        done.add(s)
+      } else {
+        if (s.timePass) activated.add(s)
+      }
     }
-    if (done.isEmpty) return [,]
-    Node[] result := [,]
     done.each |s| {
       signals.remove(s)
+    }
+    if (activated.isEmpty) return [,]
+    Node[] result := [,]
+    activated.each |s| {
+      signals.remove(s)
       result.add(otherSideOf(s.from))
+      alreadyDone.add(s)
     }
     return result
   }
@@ -86,7 +96,11 @@ abstract class Connection {
 
   Connection addSignal(Node from, Int signalLength := -1) {
     if (signalLength == -1) signalLength = val.signalLength
-    signals.add(Signal(from,signalLength))
+    if (signals.any |si| { si.from == from && si.length == signalLength }) {
+      // Already there, just don't add
+    } else {
+      signals.add(Signal(from,signalLength))
+    }
     return this
   }
 

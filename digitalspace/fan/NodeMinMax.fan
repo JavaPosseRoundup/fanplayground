@@ -40,12 +40,6 @@ class NodeMinMax : Node {
     return mySize < NodeRules.MAX && endSize < NodeRules.MAX && super.canConnect(endNode, notCounting, considering)
   }
 
-  Connection connectAndSignal(Node n, Connection conn, Node endNode) {
-    co := n.connect(endNode,conn)
-    co.addSignal(n)
-    return co
-  }
-
   override Connection[] signal(Connection[] from, NodeFactory nodeFactory) {
     if (!isValid()) throw Err("Node ${fullStr} is invalid")
     // No actual signal
@@ -198,6 +192,8 @@ class NodeMinMax : Node {
   ** Then send signals back to all adj nodes if sendSignals is true
   **
   private Connection[] explodeMe(NodeFactory nodeFactory, Int nbSignals) {
+    // I need to be valid to explode :)
+    if (!isValid()) throw Err("Node ${fullStr} is invalid and so cannot explode!")
     Connection[] signaled := [,]
     Node[] newNodes := adjNodes.map |adj| {
       newNode := nodeFactory.createNode()
@@ -210,62 +206,96 @@ class NodeMinMax : Node {
       return newNode
     }
     nodeFactory.killNode(this)
-    // Each new nodes has already one connection they need MIN-1 new ones to be valid
-    newNodes.each |nn| {
-      newNodes.eachrWhile |on| {
-        if (!on.isValid() && !nn.isValid() && on.canConnect(nn)) {
-          newConn := on.connect(nn)
-          if (nbSignals > 0) {
-            signaled.add(newConn.addSignal(nn))
-            nbSignals--
-          }
-        }
-        if (nn.isValid()) return nn
-        return null
+    nodeFactory.connectNodes(newNodes, Space.connFactory.minVal).eachWhile |newConn->Bool?| {
+      if (nbSignals > 0) {
+        signaled.add(newConn.addSignal(newConn.na))
+        nbSignals--
       }
+      if (nbSignals == 0) return true
+      return null
     }
     return signaled
   }
 
-  private Connection[] allBig(NodeFactory nodeFactory, Connection[] nonSignalConns) {
+  private Connection[] allSmall(NodeFactory nodeFactory, Connection[] nonSignalConns) {
     return explodeMe(nodeFactory, conn.size)
   }
 
-  private Connection[] allSmall(NodeFactory nodeFactory, Connection[] nonSignalConns) {
-    // 2 cases:
-    // 1) All connections are redistributed to adjancent connections
-    // 2) All connections (except signaled) are increment and signaled
-    Node[] adj := adjNodes
-    // Create all possible connections between adj nodes
-    Connection[] possible := [,]
-    adj.each |na| { adj.each |nb| { if (na.canConnect(nb,this,possible)) possible.add(Space.connFactory.createConnection(na,nb)) } }
-    possible = possible.unique
-    if (possible.size < 2) {
-      // This node cannot create enough new connections with adjacent nodes ???!!!?
-      // Break conservation and increment and signals everyone
-      log.info("Not enough possible adj connections on $hash to disapear => create val and signals")
-      return nonSignalConns.findAll |co| {
-        co++
-        co.addSignal(this)
-        return true
-      }
-    }
+  private Connection[] allBig(NodeFactory nodeFactory, Connection[] nonSignalConns) {
+    // The node disapear, the adjacent nodes are reput in stable state (with node creation if necessary)
+    // Then all the existing connections and signals of this node are redistributed to the adjacents connections
+
     // Kill the node and distribute the connections to possible adjacent
     // Cut the node and distribute the tot value
     log.info("Node $hash disapear and adj connections created and signaled")
     ConnValue initVal := IntegerConnectionValue()
-    ConnValue tot := adj.reduce(initVal) |v,n->ConnValue| { n.cut(this).val + v }
+    ConnValue tot := IntegerConnectionValue()
+    Int leftSignals := conn.size - nonSignalConns.size
+    adj := adjNodes
+    adj.each |n| {
+      dc := n.cut(this)
+      tot += dc.val
+      leftSignals += dc.signals.size
+    }
     nodeFactory.killNode(this)
-    // Distribute tot to all possible => first remove the val of all possible
-    tot = tot - (initVal * possible.size)
-    // v to distribute
-    ConnValue v := tot / possible.size
-    if (!(v + initVal).valid()) {
-      throw Err("All connection were small and I cannot distribute the value to adjacent new connections?!?")
+    newConns := nodeFactory.connectNodes(adj,Space.connFactory.minVal)
+    // Distribute tot to all possible => first remove the val of new connections
+    tot = tot - (initVal * (newConns.size+1))
+    adj.each |na| { adj.each |nb| {
+        co := na.findConnection(nb)
+        if (co != null) newConns.add(co)
+    } }
+    newConns = newConns.unique
+    Connection[] results := [,]
+    if (newConns.size == 0) {
+      log.warn("Node $this loose it all!")
+    } else {
+      ConnValue? leftOvers := tot
+      i := 0
+      while (leftOvers != null && i < newConns.size) {
+        i++
+        newLeftOvers := distribute(newConns,leftOvers)
+        if (newLeftOvers != null && leftOvers == newLeftOvers) {
+          log.info("Distribution lost $leftOvers values")
+          break;
+        }
+        leftOvers = newLeftOvers
+      }
+      newConns.each |co| {
+        if (leftSignals > 0) {
+          results.add(co.addSignal(co.na))
+          leftSignals--
+        }
+      }
+      if (leftOvers != null || leftSignals != 0) {
+        log.info("Node $this lost $leftSignals signals and $leftOvers conn val")
+      }
+     }
+    return results
+  }
+
+  ** Distributing tot to all connections
+  ConnValue? distribute(Connection[] conns, ConnValue tot) {
+    maxVal := Space.connFactory.maxVal
+    minVal := Space.connFactory.minVal
+    // the flat v to distribute
+    ConnValue v := tot / conns.size
+    if ((v + minVal) > maxVal) {
+      log.info("Cannot distribute more than max-min per connections => Means loosing val")
+      v = maxVal - minVal
     }
-    return possible.map |co| {
-      co.na.connect(co.nb,co + v).addSignal(co.na)
+    conns.each |co| {
+      if (!tot.isZero) {
+        newVal := co.val + v
+        if (!newVal.valid) {
+          newVal = maxVal
+        }
+        tot -= newVal - co.val
+        co.setVal(newVal)
+      }
     }
+    if (tot.isZero) return null
+    return tot
   }
 }
 
@@ -285,14 +315,73 @@ class NodeMinMaxFactory : NodeFactory {
     return res
   }
 
-  override Node forkNode(Node[] nodes, ConnValue[] val) {
-    res := NodeMinMax() {
-      me := it
-      nodes.each |no,idx| {
-        me.conn.add(Space.connFactory.createConnection(me, no, val[idx]))
+  private Connection createConn(Node na, Node nb, ConnValue? defVal) {
+    cf := Space.connFactory
+    if (defVal == null) {
+      // Using random
+      defVal = cf.randomVal
+    }
+    return na.connect(nb,cf.createConnection(na, nb, defVal))
+  }
+
+  override Connection[] connectNodes(Node[] nodes, ConnValue? defVal := null) {
+    Connection[] results := [,]
+    i := 0
+    nodes.each |na| {
+      // Use randomization only at the beginning for big nodes collection
+      if (nodes.size > NodeRules.MIN+2) {
+        while (!na.isValid && i < NodeRules.MIN*2) {
+          i++
+          nb := nodes.random
+          if (!nb.isValid && na.canConnect(nb)) results.add(createConn(na,nb,defVal))
+        }
+        // If randomization worked continue to use it
+        if (na.isValid) i = 0
+      }
+      if (!na.isValid) {
+        // Sweep systematically finding other invalid nodes
+        Bool? valid := nodes.eachrWhile |Node nb->Bool?| {
+          if (!nb.isValid && na.canConnect(nb)) results.add(createConn(na,nb,defVal))
+          if (na.isValid) return true
+          return null
+        }
+        if (valid == null) {
+          // Need to allow more than min number of connections (local loops or wrong numbering)
+          // Use randomization for big nodes collection
+          if (nodes.size > NodeRules.MIN+2) {
+            j := 0
+            while (!na.isValid && j < NodeRules.MIN*2) {
+              j++
+              nb := nodes.random
+              if (na.canConnect(nb)) results.add(createConn(na,nb,defVal))
+            }
+          }
+          if (!na.isValid) {
+            // Sweep systematically and ignore nb validity
+            valid = nodes.eachrWhile |Node nb->Bool?| {
+              if (na.canConnect(nb)) results.add(createConn(na,nb,defVal))
+              if (na.isValid) return true
+              return null
+            }
+          }
+          if (!na.isValid) {
+            // Go to second level nodes connections (Actually should create a new node??)
+            valid = nodes.eachrWhile |Node nb->Bool?| {
+              if (nb != na) {
+                return nb.conn.eachrWhile |co->Bool?| {
+                  nbo := co.otherSideOf(nb)
+                  if (nbo.canConnect(nb)) results.add(createConn(na,nbo,defVal))
+                  if (na.isValid) return true
+                  return null
+                }
+              }
+              return null
+            }
+          }
+          if (!na.isValid) throw Err("Cannot provide connections to ${na.fullStr} from collection $nodes")
+        }
       }
     }
-    nodes.add(res)
-    return res
+    return results
   }
 }

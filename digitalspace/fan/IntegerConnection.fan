@@ -10,6 +10,9 @@ const class IntegerConnectionFactory : ConnectionFactory {
 
   override ConnValue minVal() { return IntegerConnectionValue(ConnRules.MIN) }
   override ConnValue maxVal() { return IntegerConnectionValue(ConnRules.MAX) }
+  override ConnValue randomVal() {
+    return IntegerConnectionValue(Int.random(ConnRules.MIN..ConnRules.MAX))
+  }
 }
 
 class IntegerConnection : Connection {
@@ -63,6 +66,10 @@ class IntegerConnectionValue : ConnValue {
 
   override Int hash() {
     return d.hash
+  }
+
+  override Bool isZero() {
+    return d <= 0
   }
 
   override Int compare(Obj o) {

@@ -25,7 +25,13 @@ abstract class Node {
 
   abstract Bool isValid()
   Node[] adjNodes() { conn.map { it.otherSideOf(this) } }
-  Bool isConnected(Node endNode) { (this != endNode) && conn.any { it.na == endNode || it.nb == endNode } }
+  Bool isConnected(Node endNode) { (this != endNode) && conn.any { !it.isDead(this) && !it.isDead(endNode) && (it.na == endNode || it.nb == endNode) } }
+  Connection? findConnection(Node endNode) {
+    if (this == endNode) return null
+    return conn.find |co->Bool| {
+      !co.isDead(this) && !co.isDead(endNode) && (co.na == endNode || co.nb == endNode)
+    }
+  }
 
   **
   ** Cannot connect to myself or have double connections
