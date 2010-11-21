@@ -5,7 +5,7 @@
 
 const class ConnRules {
   static const Int MIN := 2
-  static const Int MAX := 8
+  static const Int MAX := 12
 }
 
 const class NodeRules {
