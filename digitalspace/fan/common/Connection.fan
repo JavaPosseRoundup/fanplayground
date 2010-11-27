@@ -3,23 +3,9 @@
  * @date Nov 16, 2010
  */
 
-mixin ConnValue {
-  abstract Bool valid()
-  abstract Str? invalidReason()
-  abstract Bool isZero()
-  abstract Bool canIncrement()
-  @Operator abstract ConnValue increment()
-  abstract Bool canDecrement()
-  @Operator abstract ConnValue decrement()
-  @Operator abstract ConnValue plus(ConnValue o)
-  @Operator abstract ConnValue minus(ConnValue o)
-  @Operator abstract ConnValue mult(Int per)
-  @Operator abstract ConnValue div(Int per)
-  abstract ConnValue[] half()
-  abstract Int signalLength()
-}
-
 abstract class Connection {
+  static Rules rules() { return RuleHolder.rules }
+
   Node[] nodes
   Signal[] signals := [,]
   ** 1 is na dead, 2 is nb dead, 3 is both dead
@@ -94,12 +80,12 @@ abstract class Connection {
     return null
   }
 
-  Connection addSignal(Node from, Int signalLength := -1) {
-    if (signalLength == -1) signalLength = val.signalLength
-    if (signals.any |si| { si.from == from && si.length == signalLength }) {
+  Connection addSignal(Node from, SigValue? sigVal := null) {
+    if (sigVal == null) sigVal = rules.valToSigVal(val)
+    if (signals.any |si| { si.from == from && si.val == sigVal }) {
       // Already there, just don't add
     } else {
-      signals.add(Signal(from,signalLength))
+      signals.add(Signal(from,sigVal))
     }
     return this
   }
@@ -171,7 +157,7 @@ abstract class Connection {
   @Operator Connection plusConnection(Connection o) {
     if (identical(o)) {
       // Same connection nodes, just add the connection value and signals
-      newConn := Space.connFactory.createConnection(na, nb, val + o.val)
+      newConn := rules.createConnection(na, nb, val + o.val)
       signals.each |s| {
         newConn.addSignal(s.from, s.length + o.val.signalLength)
       }
@@ -190,7 +176,7 @@ abstract class Connection {
     }
     // Common dead nodes cannot be more than it means connection are identical
     removedNode := commonDeadNodes[0]
-    newConn := Space.connFactory.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val + o.val)
+    newConn := rules.createConnection(otherSideOf(removedNode), o.otherSideOf(removedNode), val + o.val)
     // Keep the extra dead nodes if necessary
     if (allDead) newConn.markDead(newConn.na)
     if (o.allDead) newConn.markDead(newConn.nb)
@@ -214,7 +200,7 @@ abstract class Connection {
 
   Connection swap(Node oldNode, Node newNode) {
     if (!nodes.contains(oldNode)) throw Err("Cannot swap old=$oldNode with new=$newNode on $this since old is not part of this")
-    newConn := Space.connFactory.createConnection(newNode, otherSideOf(oldNode), val)
+    newConn := rules.createConnection(newNode, otherSideOf(oldNode), val)
     newConn.dead = dead
     signals.each |si| {
       if (si.from == oldNode)
@@ -229,8 +215,8 @@ abstract class Connection {
     newVal := val.half
     // Copy the dead field to the 2 connections
     Connection[] newConn := [
-      Space.connFactory.createConnection(na, nb, newVal[0]) { it.dead = this.dead },
-      Space.connFactory.createConnection(na, nb, newVal[1]) { it.dead = this.dead }
+      rules.createConnection(na, nb, newVal[0]) { it.dead = this.dead },
+      rules.createConnection(na, nb, newVal[1]) { it.dead = this.dead }
     ]
     // TODO: We multiply or split the signals? => I split
     signals.each |s| {

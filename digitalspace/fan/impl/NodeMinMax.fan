@@ -3,22 +3,11 @@
  * @date Nov 12, 2010
  */
 
-const class ConnRules {
-  static const Int MIN := 2
-  static const Int MAX := 12
-}
-
-const class NodeRules {
-  static const Int MIN := 3
-  static const Int MAX := 6
-  static const Bool signalOnDecrement := true
-}
-
 class NodeMinMax : Node {
   const static Log log := Log.get("NodeMinMax")
 
   override Bool isValid() {
-    return conn.size >= NodeRules.MIN && conn.size <= NodeRules.MAX && conn.all |co| { !co.hasDeadNodes }
+    return conn.size >= rules.minConn && conn.size <= rules.maxConn && conn.all |co| { !co.hasDeadNodes }
   }
 
   override Bool canConnect(Node endNode, Node? notCounting := null, Connection[] considering := [,]) {
@@ -37,7 +26,7 @@ class NodeMinMax : Node {
         if (endO != null && endO != notCounting) endSize++
       }
     }
-    return mySize < NodeRules.MAX && endSize < NodeRules.MAX && super.canConnect(endNode, notCounting, considering)
+    return mySize < rules.maxConn && endSize < rules.maxConn && super.canConnect(endNode, notCounting, considering)
   }
 
   override Connection[] signal(Connection[] from, NodeFactory nodeFactory) {
@@ -179,7 +168,7 @@ class NodeMinMax : Node {
     return [small,big]
   }
 
-  private Connection[] standardMove(Connection small, Connection big, Bool signalOnBig := NodeRules.signalOnDecrement) {
+  private Connection[] standardMove(Connection small, Connection big, Bool signalOnBig := true) {
     small.increment()
     big.decrement()
     toSignal := (signalOnBig ? big : small)
@@ -206,7 +195,7 @@ class NodeMinMax : Node {
       return newNode
     }
     nodeFactory.killNode(this)
-    nodeFactory.connectNodes(newNodes, Space.connFactory.minVal).eachWhile |newConn->Bool?| {
+    nodeFactory.connectNodes(newNodes, rules.minVal).eachWhile |newConn->Bool?| {
       if (nbSignals > 0) {
         signaled.add(newConn.addSignal(newConn.na))
         nbSignals--
@@ -228,8 +217,8 @@ class NodeMinMax : Node {
     // Kill the node and distribute the connections to possible adjacent
     // Cut the node and distribute the tot value
     log.info("Node $hash disapear and adj connections created and signaled")
-    ConnValue initVal := IntegerConnectionValue()
-    ConnValue tot := IntegerConnectionValue()
+    ConnValue initVal := rules.minVal
+    ConnValue tot := rules.minVal
     Int leftSignals := conn.size - nonSignalConns.size
     adj := adjNodes
     adj.each |n| {
@@ -238,7 +227,7 @@ class NodeMinMax : Node {
       leftSignals += dc.signals.size
     }
     nodeFactory.killNode(this)
-    newConns := nodeFactory.connectNodes(adj,Space.connFactory.minVal)
+    newConns := nodeFactory.connectNodes(adj,rules.minVal)
     // Distribute tot to all possible => first remove the val of new connections
     tot = tot - (initVal * (newConns.size+1))
     adj.each |na| { adj.each |nb| {
@@ -300,6 +289,8 @@ class NodeMinMax : Node {
 }
 
 class NodeMinMaxFactory : NodeFactory {
+  static Rules rules() { return RuleHolder.rules }
+
   Node[] nodes := [,]
 
   override Node[] allNodes() { return nodes }
@@ -316,12 +307,11 @@ class NodeMinMaxFactory : NodeFactory {
   }
 
   private Connection createConn(Node na, Node nb, ConnValue? defVal) {
-    cf := Space.connFactory
     if (defVal == null) {
       // Using random
-      defVal = cf.randomVal
+      defVal = rules.randomVal
     }
-    return na.connect(nb,cf.createConnection(na, nb, defVal))
+    return na.connect(nb,rules.createConnection(na, nb, defVal))
   }
 
   override Connection[] connectNodes(Node[] nodes, ConnValue? defVal := null) {
@@ -329,8 +319,8 @@ class NodeMinMaxFactory : NodeFactory {
     i := 0
     nodes.each |na| {
       // Use randomization only at the beginning for big nodes collection
-      if (nodes.size > NodeRules.MIN+2) {
-        while (!na.isValid && i < NodeRules.MIN*2) {
+      if (nodes.size > rules.minConn*2) {
+        while (!na.isValid && i < rules.minConn*2) {
           i++
           nb := nodes.random
           if (!nb.isValid && na.canConnect(nb)) results.add(createConn(na,nb,defVal))
@@ -348,9 +338,9 @@ class NodeMinMaxFactory : NodeFactory {
         if (valid == null) {
           // Need to allow more than min number of connections (local loops or wrong numbering)
           // Use randomization for big nodes collection
-          if (nodes.size > NodeRules.MIN+2) {
+          if (nodes.size > rules.minConn*2) {
             j := 0
-            while (!na.isValid && j < NodeRules.MIN*2) {
+            while (!na.isValid && j < rules.minConn*2) {
               j++
               nb := nodes.random
               if (na.canConnect(nb)) results.add(createConn(na,nb,defVal))
@@ -361,20 +351,6 @@ class NodeMinMaxFactory : NodeFactory {
             valid = nodes.eachrWhile |Node nb->Bool?| {
               if (na.canConnect(nb)) results.add(createConn(na,nb,defVal))
               if (na.isValid) return true
-              return null
-            }
-          }
-          if (!na.isValid) {
-            // Go to second level nodes connections (Actually should create a new node??)
-            valid = nodes.eachrWhile |Node nb->Bool?| {
-              if (nb != na) {
-                return nb.conn.eachrWhile |co->Bool?| {
-                  nbo := co.otherSideOf(nb)
-                  if (nbo.canConnect(nb)) results.add(createConn(na,nbo,defVal))
-                  if (na.isValid) return true
-                  return null
-                }
-              }
               return null
             }
           }

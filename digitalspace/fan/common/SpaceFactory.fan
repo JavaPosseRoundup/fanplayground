@@ -12,9 +12,6 @@ mixin NodeFactory {
 
 const mixin ConnectionFactory {
   abstract Connection createConnection(Node n1, Node n2, ConnValue? val := null)
-  abstract ConnValue minVal()
-  abstract ConnValue maxVal()
-  abstract ConnValue randomVal()
 }
 
 

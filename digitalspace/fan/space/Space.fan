@@ -6,16 +6,16 @@
 class Space {
   const static Log log := Log.get("Space")
 
-  const static ConnectionFactory connFactory := IntegerConnectionFactory()
+  static Rules rules() { return RuleHolder.rules }
   NodeFactory nodeFactory := NodeMinMaxFactory()
 
   Connection[] signalingConnections := [,]
   Int step := 0
   Int sameStateFor := 0
   Int nbSignals := signalingConnections.size
-  ConnValue currentState := connFactory.minVal
+  ConnValue currentState := rules.minVal
 
-  Void init(Int size := NodeRules.MIN+1, Int nbSignals := 2, ConnValue? defVal := null) {
+  Void init(Int size := rules.minConn+1, Int nbSignals := 2, ConnValue? defVal := null) {
     log.info("Initializing space with $size nodes and $nbSignals signals")
     if (size < NodeRules.MIN+1) throw Err("Cannot create space with less than ${NodeRules.MIN+1} nodes")
     Node[] nodes := [,]
@@ -34,13 +34,13 @@ class Space {
   }
 
   ConnValue state() {
-    st := connFactory.minVal
+    st := rules.minVal
     nodeFactory.allNodes.each |n| {
       n.conn.each |co| {
         st = st + co.val
       }
     }
-    st = (st-connFactory.minVal) / 2
+    st = (st-rules.minVal) / 2
     return st
   }
 

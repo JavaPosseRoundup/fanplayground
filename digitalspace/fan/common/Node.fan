@@ -4,6 +4,8 @@
  */
 
 abstract class Node {
+  static Rules rules() { return RuleHolder.rules }
+
   Connection[] conn := [,]
 
   ** Activate the node from a list of connection that sent the signal
@@ -47,7 +49,7 @@ abstract class Node {
     if (!canConnect(endNode)) throw Err("Node $this already connected to $endNode")
     Connection? finalConn
     if (newConn == null) {
-      finalConn = Space.connFactory.createConnection(this, endNode)
+      finalConn = rules.createConnection(this, endNode)
     } else {
       os := newConn.findOtherSideOf(endNode)
       if (!newConn.hasDeadNodes && os == null) throw Err("Cannot use non dead node connection ${newConn} or connection without the endNode ${os}")
@@ -55,7 +57,7 @@ abstract class Node {
       if (!newConn.hasDeadNodes && os == this) {
         finalConn = newConn
       } else {
-        finalConn = Space.connFactory.createConnection(this, endNode, newConn.val)
+        finalConn = rules.createConnection(this, endNode, newConn.val)
         newConn.signals.each |s| {
           if (s.from == endNode)
             finalConn.addSignal(s.from, s.length)
