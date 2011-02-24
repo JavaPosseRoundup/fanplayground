@@ -2,8 +2,11 @@ using build
 
 class Build : BuildPod
 {
-  override Void setup()
+  new make()
   {
     podName = "gameoflife"
+    summary = "Conway's game of life in Fantom"
+    depends = ["sys 1.0", "util 1.0"]
+    srcDirs = [`fan/`, `test/`]
   }
 }
