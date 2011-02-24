@@ -4,8 +4,13 @@ enum class CellState {
 }
 
 class Cell {
+  GameBoard board
   Int index
   CellState state := CellState.dead
 
-  new make() {}
+  new make(GameBoard b, Int i) { board = b; index = i; }
+
+  Cell[] neighbors() {
+    return [,]
+  }
 }
