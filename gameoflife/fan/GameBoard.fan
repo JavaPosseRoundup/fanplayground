@@ -1,5 +1,5 @@
 class GameBoard {
-  final Int width
+  const Int width
   Cell[] cells := [,]
 
   new make(Int w := 8) {
