@@ -20,7 +20,7 @@ class Cell {
         cellIdx := lineIdx + col
         if (cellIdx < 0) cellIdx = board.width + cellIdx
         if (cellIdx >= board.cells.size) cellIdx = cellIdx - board.width
-        if (col != 0 && line != 0) res.add(board.cells[cellIdx])
+        if (col != 0 || line != 0) res.add(board.cells[cellIdx])
       }
     }
     return res
