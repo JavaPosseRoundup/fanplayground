@@ -1,11 +1,18 @@
+import scala.collection.mutable.MutableList
+import scala.collection.mutable.Map
+
 object Recorder extends App {
-	val history = List[Map[String, Int]]()
+	val history = MutableList[Map[String, Int]]()
     var position = 0
 
     def get(fieldname: String) = {
       	if (history.size <= position) {
+
       		// TODO: Copy the map from previous history
-      		history += new Map[String, Int]
+      		val m = Map[String, Int]()
+      		m += fieldname -> position
+      		history +=  m
+
       	}
       	history(position).get(fieldname)
     }
@@ -13,9 +20,9 @@ object Recorder extends App {
     def set(fieldname: String, value: Int) = {
       	if (history.size <= position) {
       		// TODO: Copy the map from previous history
-      		history += new Map[String, Int]
+      		history += Map(fieldname->value)
       	}
-      	history(position)(fieldname) = value
+      	history(position)(fieldname)->value
     }
 }
 
