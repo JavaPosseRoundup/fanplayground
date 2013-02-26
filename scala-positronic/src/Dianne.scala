@@ -26,12 +26,14 @@ object Recorder extends App {
     }
 }
 
-class Fred {
+class Dianne {
 	def blah = Recorder.get("blah")
 	def blah_=(x : Int) = { Recorder.set("blah", x) }
 }
 
-val fred = new Fred()
-fred.blah = 12
-println(fred.blah)
-	
+/*
+val dianne = new Dianne()
+dianne.blah = 12
+println(dianne.blah)
+*/
+
