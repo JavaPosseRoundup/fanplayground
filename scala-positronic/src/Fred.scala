@@ -1,7 +1,7 @@
 import collection.mutable
 import scala.collection.mutable.ListBuffer
 
-object Recorder {
+object Universe {
   val history = ListBuffer[mutable.ListMap[String, Int]]()
   var position = 0
   var numRun = 0
@@ -14,7 +14,7 @@ object Recorder {
     history(position).get(fieldname)
   }
 
-  def set(fieldname: String, value: Int) {
+  def set(fieldname: String, value: Option[Int]) {
     if (numRun > 0) {
       history(position)(fieldname) = value; position = position + 1
 
@@ -49,7 +49,10 @@ object Recorder {
   def isDone: Boolean = {
     numRun != 0 &&
     !history.isEmpty &&
-    !(history.exists(_.isEmpty ))
+    !(history.exists(_.isEmpty )) 
+    /*&&
+    !history.exists(_.values.exists(_ None)) */
+
 
   
 
@@ -57,30 +60,33 @@ object Recorder {
 }
 
 object Fred extends App {
+
+  val theList = List("now", "is", "the", "time")
+  val toFind = "the"
   val temperature = 32
-  def blah = Recorder.get("blah")
+  def blah = Universe.get("blah")
   def blah_=(x: Int) {
-    Recorder.set("blah", x)
+    Universe.set("blah", Some(x))
+  }
+  def blah_=(x: Option[Int]) {
+    Universe.set("blah", x)
   }
 
   def out(temp: Any) {
-     if (Recorder.isDone) println(temp)
+     if (Universe.isDone) println(temp)
   }
-  /*def runUniverse(x: Unit { 
+  
+  Universe.live {
     out(blah)
     blah = temperature/4 - 2
     out(blah)
-    blah = temperature*4
-  }
-  */
+    blah = blah.collect {case x:Int => x * -1}
+    out(blah)
+    blah = theList.indexOf(toFind)
 
-  Recorder.live {
-    out(blah)
-    blah = temperature/4 - 2
-    out(blah)
-    blah = temperature*4
     }
   
+
 }
 
 
