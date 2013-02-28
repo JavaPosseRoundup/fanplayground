@@ -13,6 +13,15 @@ object Universe {
   var position = 0
   var numRun = 0
   var finalRun = false
+  var inOut = false
+
+  def out(temp: Any) {
+    if (Universe.finalRun) {
+      inOut = true
+      println(temp)
+      inOut = false
+    }
+  }
 
   private def checkHistory(fieldname: String) {
     if (history.size <= position) {
@@ -23,11 +32,10 @@ object Universe {
   }
 
   def get(fieldname: String): Option[Int] = {
-    getFromTime(fieldname, position) match {
-      // Let's try get the value from the future
-      case None => getFromTime(fieldname, position + 1)
-      case Some(i) => Some(i)
-    }
+    if (finalRun || inOut)
+      getFromTime(fieldname, position)
+    else
+      getFromTime(fieldname, position + 1)
   }
 
   def getFromTime(fieldname: String, pos: Int): Option[Int] = {
