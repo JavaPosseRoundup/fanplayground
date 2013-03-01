@@ -9,7 +9,7 @@ class QuantumValue[A](val value: Option[A] = None) {
 
 object Universe {
   val debug = false
-  val history = ListBuffer[HashMap[String, QuantumValue[Int]]]()
+  val history = ListBuffer[HashMap[String, QuantumValue[Any]]]()
   var position = 0
   var numRun = 0
   var finalRun = false
@@ -23,40 +23,14 @@ object Universe {
     }
   }
 
-  private def checkHistory(fieldname: String) {
-    if (history.size <= position) {
-      // TODO: Copy the map from previous history
-      history += new HashMap[String, QuantumValue[Int]]()
-      history(position) += (fieldname -> new QuantumValue[Int]())
-    }
-  }
-
-  def get(fieldname: String): Option[Int] = {
+  def get[T:Manifest](fieldname: String): Option[T] = {
     if (finalRun || inOut)
-      getFromTime(fieldname, position)
+      getFromTime(fieldname, position).asInstanceOf[Option[T]]
     else
-      getFromTime(fieldname, position + 1)
+      getFromTime(fieldname, position + 1).asInstanceOf[Option[T]]
   }
 
-  def getFromTime(fieldname: String, pos: Int): Option[Int] = {
-    checkHistory(fieldname)
-    if (history.size > pos) {
-      history(pos).get(fieldname) match {
-        case None => None
-        case Some(quVal) => quVal.value
-      }
-    } else {
-      None
-    }
-  }
-
-  def addValue(fieldname: String, value: Option[Int]) {
-    checkHistory(fieldname)
-    history(position) += (fieldname -> new QuantumValue[Int](value))
-    position = position + 1
-  }
-
-  def set(fieldname: String, value: Option[Int]) {
+  def set[T:Manifest](fieldname: String, value: Option[T]) {
     addValue(fieldname, value)
   }
 
@@ -74,6 +48,32 @@ object Universe {
       position = 0
       func
     }
+  }
+
+  private def checkHistory(fieldname: String) {
+    if (history.size <= position) {
+      // TODO: Copy the map from previous history
+      history += new HashMap[String, QuantumValue[Any]]()
+      history(position) += (fieldname -> new QuantumValue[Any]())
+    }
+  }
+
+  private def getFromTime(fieldname: String, pos: Int): Option[Any] = {
+    checkHistory(fieldname)
+    if (history.size > pos) {
+      history(pos).get(fieldname) match {
+        case None => None
+        case Some(quVal) => quVal.value
+      }
+    } else {
+      None
+    }
+  }
+
+  def addValue(fieldname: String, value: Option[Any]) {
+    checkHistory(fieldname)
+    history(position) += (fieldname -> new QuantumValue[Any](value))
+    position = position + 1
   }
 
   def isDone: Boolean = {
